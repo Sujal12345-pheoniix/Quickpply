@@ -11,7 +11,14 @@ export class ApiError extends Error {
 
 async function getToken(): Promise<string | null> {
   if (typeof window === "undefined") return null;
-  // Clerk session token injected by useAuth in components
+  const clerk = (window as any).Clerk;
+  if (clerk?.session) {
+    try {
+      return await clerk.session.getToken();
+    } catch (e) {
+      console.error("Failed to retrieve Clerk token:", e);
+    }
+  }
   return null;
 }
 
@@ -40,10 +47,12 @@ export const api = {
   },
   jobs: {
     list: (params?: Record<string, string>) =>
-      apiFetch(`/jobs?${new URLSearchParams(params ?? {})}`),
+      apiFetch<{ data: any[]; meta: any }>(`/jobs?${new URLSearchParams(params ?? {})}`),
     discover: () => apiFetch("/jobs/discover", { method: "POST" }),
   },
   applications: {
+    list: () =>
+      apiFetch<{ data: any[] }>("/applications"),
     generate: (jobId: string) =>
       apiFetch("/applications/generate", {
         method: "POST",
