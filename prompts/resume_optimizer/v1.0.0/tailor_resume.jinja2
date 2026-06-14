@@ -1,0 +1,29 @@
+{% include '_shared/system_identity.jinja2' %}
+
+Tailor this resume for the target role. REPHRASE only — never add fake experience.
+
+<original_profile>
+{{ profile_json }}
+</original_profile>
+
+<target_job>
+Title: {{ job_title }}
+Company: {{ company_name }}
+Required Skills: {{ required_skills | join(', ') }}
+Key Responsibilities: {{ responsibilities | join('; ') }}
+ATS Keywords: {{ keywords | join(', ') }}
+</target_job>
+
+<relevant_experiences>
+{% for exp in relevant_experiences %}
+- {{ exp.company }} | {{ exp.title }} | {{ exp.achievements | join('; ') }}
+{% endfor %}
+</relevant_experiences>
+
+Return JSON:
+{
+  "tailored_resume_text": "...",
+  "changes_made": ["..."],
+  "keywords_injected": ["..."],
+  "sections_modified": ["summary", "experience", "skills"]
+}

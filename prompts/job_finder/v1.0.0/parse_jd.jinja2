@@ -1,0 +1,23 @@
+{% include '_shared/system_identity.jinja2' %}
+
+Analyze this job description and extract structured intelligence.
+
+<job_description>
+{{ job_description }}
+</job_description>
+
+Return JSON with this exact schema:
+{
+  "required_skills": ["skill1"],
+  "preferred_skills": ["skill1"],
+  "experience_years_min": 3,
+  "experience_years_max": 5,
+  "responsibilities": ["resp1"],
+  "hidden_requirements": [{"requirement": "...", "signal": "..."}],
+  "seniority_level": "senior",
+  "company_type": "series_b_startup",
+  "keywords": ["keyword1"],
+  "red_flags": [],
+  "employment_type": "full_time",
+  "remote_policy": "hybrid"
+}

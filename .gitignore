@@ -1,0 +1,71 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.pyre/
+.hypothesis/
+.tox/
+.nox/
+.venv/
+venv/
+env/
+ENV/
+
+# FastAPI / backend artifacts
+backend/.venv/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/.coverage
+backend/htmlcov/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Frontend artifacts
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/dist/
+frontend/coverage/
+
+# Docker
+docker-compose.override.yml
+
+# Misc
+*.pid
+*.seed
+*.pid.lock

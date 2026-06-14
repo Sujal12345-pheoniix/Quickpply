@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 33% 98%;
+    --foreground: 222 47% 11%;
+    --primary: 215 84% 18%;
+    --primary-foreground: 210 40% 98%;
+    --muted: 214 32% 95%;
+    --muted-foreground: 215 18% 41%;
+    --border: 214 29% 87%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(circle at top left, rgba(244, 114, 182, 0.12), transparent 28%),
+      radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 24%),
+      linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 1));
+  }
+
+  ::selection {
+    background: rgba(15, 23, 42, 0.92);
+    color: white;
+  }
+}

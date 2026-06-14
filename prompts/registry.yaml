@@ -1,0 +1,27 @@
+agents:
+  job_finder:
+    parse_jd: "1.0.0"
+    extract_skills: "1.0.0"
+  resume_optimizer:
+    tailor_resume: "1.0.0"
+    ats_score: "1.0.0"
+  cover_letter:
+    generate: "1.0.0"
+  outreach:
+    linkedin_dm: "1.0.0"
+    email: "1.0.0"
+    follow_up: "1.0.0"
+    referral_request: "1.0.0"
+  matching:
+    score_match: "1.0.0"
+    gap_analysis: "1.0.0"
+  interview_coach:
+    mock_interview: "1.0.0"
+    feedback: "1.0.0"
+  market_intelligence:
+    role_report: "1.0.0"
+
+model_defaults:
+  extraction: "gpt-4o-mini"
+  generation: "claude-3-5-sonnet"
+  embedding: "text-embedding-3-small"

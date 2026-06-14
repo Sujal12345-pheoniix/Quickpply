@@ -1,0 +1,982 @@
+openapi: 3.1.0
+info:
+  title: ApplyPilot AI API
+  version: 1.0.0
+  description: |
+    Production API for ApplyPilot AI job application intelligence platform.
+    All endpoints require Clerk JWT unless marked public.
+  contact:
+    name: ApplyPilot Engineering
+
+servers:
+  - url: https://api.applypilot.ai/v1
+    description: Production
+  - url: http://localhost:8000/v1
+    description: Development
+
+tags:
+  - name: Auth
+  - name: Profiles
+  - name: Jobs
+  - name: Matches
+  - name: Applications
+  - name: Approvals
+  - name: Outreach
+  - name: Interviews
+  - name: Analytics
+  - name: Subscriptions
+  - name: Webhooks
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        has_next:
+          type: boolean
+
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        headline:
+          type: string
+        summary:
+          type: string
+        years_experience:
+          type: number
+        current_title:
+          type: string
+        skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/Skill'
+        experiences:
+          type: array
+          items:
+            $ref: '#/components/schemas/Experience'
+
+    Skill:
+      type: object
+      properties:
+        skill_name:
+          type: string
+        proficiency:
+          type: string
+          enum: [beginner, intermediate, advanced, expert]
+        years_used:
+          type: number
+        is_primary:
+          type: boolean
+
+    Experience:
+      type: object
+      properties:
+        company:
+          type: string
+        title:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        description:
+          type: string
+        achievements:
+          type: array
+          items:
+            type: string
+        technologies:
+          type: array
+          items:
+            type: string
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        company_name:
+          type: string
+        source:
+          type: string
+        source_url:
+          type: string
+        location:
+          type: string
+        is_remote:
+          type: boolean
+        salary_min:
+          type: integer
+        salary_max:
+          type: integer
+        required_skills:
+          type: array
+          items:
+            type: string
+        posted_at:
+          type: string
+          format: date-time
+        company:
+          $ref: '#/components/schemas/CompanyIntel'
+
+    CompanyIntel:
+      type: object
+      properties:
+        health_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        funding_stage:
+          type: string
+        hiring_velocity:
+          type: integer
+        employee_count:
+          type: integer
+
+    MatchResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_id:
+          type: string
+          format: uuid
+        match_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        skill_match:
+          type: object
+          properties:
+            matched:
+              type: array
+              items:
+                type: string
+            missing:
+              type: array
+              items:
+                type: string
+            transferable:
+              type: array
+              items:
+                type: string
+        gap_analysis:
+          type: object
+        interview_probability:
+          type: object
+          properties:
+            shortlist:
+              type: number
+            oa:
+              type: number
+            interview:
+              type: number
+        recommendation:
+          type: string
+          enum: [strong_apply, apply, consider, skip]
+
+    Application:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [draft, pending_review, approved, submitted, oa, interview, rejected, offer, withdrawn]
+        ats_score:
+          type: integer
+        tailored_resume_text:
+          type: string
+        cover_letter_text:
+          type: string
+        keyword_coverage:
+          type: object
+
+    ApplicationPack:
+      type: object
+      properties:
+        application:
+          $ref: '#/components/schemas/Application'
+        outreach_messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutreachMessage'
+        approval_required:
+          type: boolean
+          default: true
+
+    OutreachMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        channel:
+          type: string
+          enum: [linkedin_dm, email, follow_up, referral_request]
+        subject:
+          type: string
+        body:
+          type: string
+        recipient_name:
+          type: string
+
+    ApprovalRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        application_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ─── AUTH ───────────────────────────────────────────
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+                  tier:
+                    type: string
+                  onboarding_completed:
+                    type: boolean
+
+  # ─── PROFILES ───────────────────────────────────────
+  /profiles:
+    get:
+      tags: [Profiles]
+      summary: Get user profile
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+    put:
+      tags: [Profiles]
+      summary: Update profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Profile'
+      responses:
+        '200':
+          description: Updated profile
+
+  /profiles/resume:
+    post:
+      tags: [Profiles]
+      summary: Upload and parse resume (PDF/DOCX)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Parsed profile extracted from resume
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+
+  /profiles/preferences:
+    get:
+      tags: [Profiles]
+      summary: Get job search preferences
+      responses:
+        '200':
+          description: Job preferences
+    put:
+      tags: [Profiles]
+      summary: Update job search preferences
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target_titles:
+                  type: array
+                  items:
+                    type: string
+                locations:
+                  type: array
+                  items:
+                    type: string
+                min_match_score:
+                  type: integer
+                  default: 70
+                enabled_sources:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Updated preferences
+
+  # ─── JOBS ───────────────────────────────────────────
+  /jobs:
+    get:
+      tags: [Jobs]
+      summary: List discovered jobs
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: min_score
+          in: query
+          schema:
+            type: integer
+        - name: remote
+          in: query
+          schema:
+            type: boolean
+        - name: q
+          in: query
+          description: Full-text search
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Job'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+  /jobs/{job_id}:
+    get:
+      tags: [Jobs]
+      summary: Get job detail with analysis
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Job'
+                  - type: object
+                    properties:
+                      analysis:
+                        type: object
+                      match:
+                        $ref: '#/components/schemas/MatchResult'
+
+  /jobs/import:
+    post:
+      tags: [Jobs]
+      summary: Import job from URL (manual)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+      responses:
+        '201':
+          description: Job imported and queued for analysis
+
+  /jobs/discover:
+    post:
+      tags: [Jobs]
+      summary: Trigger job discovery for current user
+      responses:
+        '202':
+          description: Discovery job queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: string
+
+  # ─── MATCHES ────────────────────────────────────────
+  /matches:
+    get:
+      tags: [Matches]
+      summary: List match results for user
+      parameters:
+        - name: min_score
+          in: query
+          schema:
+            type: integer
+            default: 70
+        - name: recommendation
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/MatchResult'
+                        - type: object
+                          properties:
+                            job:
+                              $ref: '#/components/schemas/Job'
+
+  /matches/{match_id}/bookmark:
+    post:
+      tags: [Matches]
+      summary: Bookmark a matched job
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Bookmarked
+
+  /matches/{match_id}/dismiss:
+    post:
+      tags: [Matches]
+      summary: Dismiss a matched job
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Dismissed
+
+  # ─── APPLICATIONS ─────────────────────────────────────
+  /applications:
+    get:
+      tags: [Applications]
+      summary: List applications (tracker)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+
+  /applications/generate:
+    post:
+      tags: [Applications]
+      summary: Generate application pack (resume + cover letter + outreach)
+      description: |
+        Queues parallel AI generation tasks. Returns task ID.
+        Materials enter PENDING_REVIEW state — never auto-submitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_id]
+              properties:
+                job_id:
+                  type: string
+                  format: uuid
+                include_outreach:
+                  type: boolean
+                  default: true
+      responses:
+        '202':
+          description: Generation queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  application_id:
+                    type: string
+                  task_id:
+                    type: string
+                  status:
+                    type: string
+                    example: pending_review
+
+  /applications/{application_id}:
+    get:
+      tags: [Applications]
+      summary: Get application with all materials
+      parameters:
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationPack'
+
+    patch:
+      tags: [Applications]
+      summary: Update application materials (user edits)
+      parameters:
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tailored_resume_text:
+                  type: string
+                cover_letter_text:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Updated
+
+  /applications/{application_id}/ats-score:
+    post:
+      tags: [Applications]
+      summary: Re-run ATS analysis on current resume
+      parameters:
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ats_score:
+                    type: integer
+                  keyword_coverage:
+                    type: object
+                  missing_skills:
+                    type: array
+                    items:
+                      type: string
+
+  /applications/{application_id}/status:
+    patch:
+      tags: [Applications]
+      summary: Update application pipeline status
+      parameters:
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [oa, interview, rejected, offer, withdrawn]
+      responses:
+        '200':
+          description: Status updated
+
+  # ─── APPROVALS ────────────────────────────────────────
+  /applications/{application_id}/approve:
+    post:
+      tags: [Approvals]
+      summary: Approve application materials for submission
+      description: |
+        CRITICAL: This approves materials for the user to manually submit.
+        Does NOT auto-submit to any job board.
+      parameters:
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reviewer_notes:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: approved
+
+  /applications/{application_id}/reject:
+    post:
+      tags: [Approvals]
+      summary: Reject and request regeneration
+      parameters:
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                regenerate:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Rejected
+
+  /applications/{application_id}/submit:
+    post:
+      tags: [Approvals]
+      summary: Mark application as submitted (user confirms manual submission)
+      parameters:
+        - name: application_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                submitted_url:
+                  type: string
+                  format: uri
+      responses:
+        '200':
+          description: Marked as submitted
+        '403':
+          description: Application not in APPROVED state
+
+  # ─── OUTREACH ─────────────────────────────────────────
+  /outreach:
+    get:
+      tags: [Outreach]
+      summary: List outreach messages
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OutreachMessage'
+
+  /outreach/contacts:
+    get:
+      tags: [Outreach]
+      summary: Find networking contacts for a company/role
+      parameters:
+        - name: company_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: job_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Suggested contacts
+
+  /outreach/{message_id}/mark-sent:
+    post:
+      tags: [Outreach]
+      summary: Mark outreach message as sent by user
+      parameters:
+        - name: message_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Marked sent
+
+  # ─── INTERVIEWS ───────────────────────────────────────
+  /interviews/sessions:
+    post:
+      tags: [Interviews]
+      summary: Start mock interview session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                application_id:
+                  type: string
+                  format: uuid
+                session_type:
+                  type: string
+                  enum: [behavioral, technical, system_design]
+      responses:
+        '201':
+          description: Session created with questions
+
+  /interviews/sessions/{session_id}/answer:
+    post:
+      tags: [Interviews]
+      summary: Submit answer and get AI feedback
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question_index, answer]
+              properties:
+                question_index:
+                  type: integer
+                answer:
+                  type: string
+      responses:
+        '200':
+          description: AI feedback on answer
+
+  # ─── ANALYTICS ────────────────────────────────────────
+  /analytics/dashboard:
+    get:
+      tags: [Analytics]
+      summary: User application analytics
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_applications:
+                    type: integer
+                  interview_rate:
+                    type: number
+                  avg_match_score:
+                    type: number
+                  pipeline:
+                    type: object
+                  weekly_activity:
+                    type: array
+                    items:
+                      type: object
+
+  /analytics/market-report:
+    post:
+      tags: [Analytics]
+      summary: Generate market intelligence report
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target_role:
+                  type: string
+                location:
+                  type: string
+      responses:
+        '202':
+          description: Report generation queued
+
+  # ─── SUBSCRIPTIONS ────────────────────────────────────
+  /subscriptions/checkout:
+    post:
+      tags: [Subscriptions]
+      summary: Create Stripe checkout session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tier]
+              properties:
+                tier:
+                  type: string
+                  enum: [pro, teams]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkout_url:
+                    type: string
+
+  /subscriptions/portal:
+    post:
+      tags: [Subscriptions]
+      summary: Create Stripe billing portal session
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  portal_url:
+                    type: string
+
+  # ─── WEBHOOKS (no auth — signature verified) ──────────
+  /webhooks/clerk:
+    post:
+      tags: [Webhooks]
+      security: []
+      summary: Clerk user sync webhook
+      responses:
+        '200':
+          description: Processed
+
+  /webhooks/stripe:
+    post:
+      tags: [Webhooks]
+      security: []
+      summary: Stripe subscription webhook
+      responses:
+        '200':
+          description: Processed
