@@ -21,6 +21,7 @@ export default function JobsPage() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [applyingAll, setApplyingAll] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,6 +55,28 @@ export default function JobsPage() {
     }
   }
 
+  async function handleApplyAll() {
+    setApplyingAll(true);
+    setSuccessMessage(null);
+    try {
+      const res = await api.applications.applyAll();
+      setSuccessMessage(res.message || "Successfully applied to all matching jobs!");
+      // Reload jobs
+      const resJobs = await api.jobs.list();
+      setJobs(resJobs.data);
+      if (resJobs.data.length > 0) {
+        setSelectedJob(resJobs.data[0]);
+      } else {
+        setSelectedJob(null);
+      }
+    } catch (e) {
+      console.error("Failed to apply all:", e);
+      alert("Error applying to all matching jobs.");
+    } finally {
+      setApplyingAll(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
@@ -73,6 +96,22 @@ export default function JobsPage() {
             </div>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">Discover Your High-Fit Roles</h1>
             <p className="mt-2 text-slate-600">Simulating applications exactly like a top candidate would.</p>
+          </div>
+          <div>
+            <button
+              onClick={handleApplyAll}
+              disabled={applyingAll || jobs.length === 0}
+              className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+            >
+              {applyingAll ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Applying to all...
+                </>
+              ) : (
+                "Apply on All"
+              )}
+            </button>
           </div>
         </div>
       </header>

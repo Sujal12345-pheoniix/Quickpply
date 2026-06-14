@@ -60,5 +60,7 @@ export const api = {
       }),
     approve: (id: string) =>
       apiFetch(`/applications/${id}/approve`, { method: "POST" }),
+    applyAll: () =>
+      apiFetch<{ message: string }>("/applications/apply-all", { method: "POST" }),
   },
 };

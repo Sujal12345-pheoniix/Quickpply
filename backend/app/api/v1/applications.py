@@ -12,7 +12,7 @@ from app.schemas import (
     GenerateApplicationRequest,
     GenerateApplicationResponse,
 )
-from app.models import Application, Job, ApplicationStatus
+from app.models import Application, Job, ApplicationStatus, Profile, ProfileSkill
 
 router = APIRouter()
 
@@ -22,14 +22,12 @@ async def list_applications(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user)
 ) -> ApplicationsResponse:
-    # Query all applications for the current user
     stmt = select(Application).where(Application.user_id == user.id)
     result = await db.execute(stmt)
     apps = result.scalars().all()
     
     data = []
     for app in apps:
-        # Fetch associated job details
         job_stmt = select(Job).where(Job.id == app.job_id)
         job_res = await db.execute(job_stmt)
         job = job_res.scalars().first()
@@ -66,14 +64,12 @@ async def generate_application(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid job_id format")
         
-    # Check if job exists
     job_stmt = select(Job).where(Job.id == job_uuid)
     job_res = await db.execute(job_stmt)
     job = job_res.scalars().first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # Create new application record in draft / pending_review status
     new_app = Application(
         user_id=user.id,
         job_id=job_uuid,
@@ -95,6 +91,66 @@ async def generate_application(
     )
 
 
+@router.post("/apply-all")
+async def apply_to_all_jobs(
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    # Fetch all jobs
+    jobs_stmt = select(Job)
+    jobs_res = await db.execute(jobs_stmt)
+    jobs = jobs_res.scalars().all()
+    
+    # Fetch existing user applications to prevent duplicates
+    app_stmt = select(Application.job_id).where(Application.user_id == user.id)
+    app_res = await db.execute(app_stmt)
+    applied_job_ids = set(app_res.scalars().all())
+    
+    # Retrieve user profile & skills
+    profile_stmt = select(Profile).where(Profile.user_id == user.id)
+    profile_result = await db.execute(profile_stmt)
+    profile = profile_result.scalars().first()
+    
+    user_skills = set()
+    if profile:
+        skills_stmt = select(ProfileSkill).where(ProfileSkill.profile_id == profile.id)
+        skills_res = await db.execute(skills_stmt)
+        user_skills = {s.skill_name.lower() for s in skills_res.scalars().all()}
+
+    applied_count = 0
+    for job in jobs:
+        if job.id in applied_job_ids:
+            continue
+            
+        # Calculate match score
+        job_skills = [s.lower() for s in job.required_skills]
+        matched_skills = [s for s in job_skills if s in user_skills]
+        base_score = int((len(matched_skills) / len(job_skills) * 100)) if job_skills else 75
+        score = min(max(base_score, 45), 98)
+
+        # Directly register application in SUBMITTED state (simulating automated apply-all)
+        new_app = Application(
+            user_id=user.id,
+            job_id=job.id,
+            status=ApplicationStatus.submitted,
+            ats_score=score,
+            applied_at=datetime.datetime.utcnow(),
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow(),
+        )
+        db.add(new_app)
+        applied_count += 1
+        
+    if applied_count > 0:
+        await db.commit()
+        
+    return {
+        "status": "success",
+        "message": f"Automatically applied to {applied_count} matching jobs.",
+        "applied_count": applied_count
+    }
+
+
 @router.post("/{application_id}/approve")
 async def approve_application(
     application_id: str,
@@ -106,7 +162,6 @@ async def approve_application(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid application_id format")
         
-    # Check if application exists and belongs to the user
     stmt = select(Application).where((Application.id == app_uuid) & (Application.user_id == user.id))
     res = await db.execute(stmt)
     app = res.scalars().first()
