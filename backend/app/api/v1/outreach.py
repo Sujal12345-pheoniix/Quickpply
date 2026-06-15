@@ -17,6 +17,7 @@ class GenerateOutreachRequest(BaseModel):
     recipient_name: str
     recipient_title: str
     channel: str  # linkedin_dm, email
+    recipient_email: str = None
 
 
 async def generate_recruiter_message_with_gemini(
@@ -126,7 +127,8 @@ async def generate_outreach(
         channel=outreach_channel_enum,
         recipient_name=payload.recipient_name,
         recipient_title=payload.recipient_title,
-        subject="Regarding Job Application" if payload.channel == "email" else None,
+        recipient_email=payload.recipient_email,
+        subject=f"Regarding Job Application for {job.title} at {job.company_name}" if payload.channel == "email" else None,
         body=message_body,
         is_sent=False
     )
@@ -139,6 +141,69 @@ async def generate_outreach(
         "channel": payload.channel,
         "recipient_name": payload.recipient_name,
         "recipient_title": payload.recipient_title,
+        "recipient_email": payload.recipient_email,
         "message": message_body,
         "attached_resume": "resume.pdf"
     }
+
+
+@router.post("/{message_id}/send")
+async def send_outreach_message(
+    message_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    try:
+        msg_uuid = UUID(message_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid message_id format")
+
+    stmt = select(OutreachMessage).where((OutreachMessage.id == msg_uuid) & (OutreachMessage.user_id == user.id))
+    res = await db.execute(stmt)
+    outreach_msg = res.scalars().first()
+    if not outreach_msg:
+        raise HTTPException(status_code=404, detail="Outreach message not found")
+
+    if outreach_msg.is_sent:
+        return {"status": "already_sent", "message": "This message has already been sent."}
+
+    if outreach_msg.channel == OutreachChannel.linkedin_dm:
+        # Simulate sending for LinkedIn DMs
+        outreach_msg.is_sent = True
+        import datetime
+        outreach_msg.sent_at = datetime.datetime.utcnow()
+        await db.commit()
+        return {"status": "success", "message": "LinkedIn message marked as sent. Copy/paste this into LinkedIn."}
+
+    # OutreachChannel is email
+    if not outreach_msg.recipient_email:
+        raise HTTPException(status_code=400, detail="Recipient email is required to send via Email.")
+
+    # Fetch User profile to get resume text
+    profile_stmt = select(Profile).where(Profile.user_id == user.id)
+    p_res = await db.execute(profile_stmt)
+    profile = p_res.scalars().first()
+
+    resume_bytes = None
+    resume_filename = "resume.txt"
+    if profile and profile.raw_resume_text:
+        resume_bytes = profile.raw_resume_text.encode("utf-8")
+
+    from app.utils.email_service import send_email
+    success = await send_email(
+        to_email=outreach_msg.recipient_email,
+        subject=outreach_msg.subject or "Regarding Job Application",
+        body=outreach_msg.body,
+        attachment_bytes=resume_bytes,
+        attachment_filename=resume_filename
+    )
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to deliver email. Check backend server logs.")
+
+    outreach_msg.is_sent = True
+    import datetime
+    outreach_msg.sent_at = datetime.datetime.utcnow()
+    await db.commit()
+
+    return {"status": "success", "message": f"Outreach email successfully sent to {outreach_msg.recipient_email}."}

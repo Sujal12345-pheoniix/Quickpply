@@ -18,6 +18,7 @@ export default function ApplicationsPage() {
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
+  const [recipientEmails, setRecipientEmails] = useState<Record<string, string>>({});
 
   async function loadApplications() {
     try {
@@ -47,19 +48,27 @@ export default function ApplicationsPage() {
     }
   }
 
-  async function handleSubmit(id: string) {
+  async function handleSubmit(id: string, recipientEmail?: string) {
     setActioningId(id);
     try {
-      // Direct call to submit route using fetch wrapper
       const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/v1";
       const token = await (window as any).Clerk?.session?.getToken();
-      await fetch(`${API_URL}/applications/${id}/submit`, {
+      const response = await fetch(`${API_URL}/applications/${id}/submit`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
+        body: JSON.stringify({
+          recipient_email: recipientEmail || null
+        })
       });
+      if (response.ok) {
+        alert(recipientEmail ? `Application successfully sent to ${recipientEmail}!` : "Application status updated to Submitted.");
+      } else {
+        const err = await response.json();
+        alert(err.detail || "Error submitting application.");
+      }
       await loadApplications();
     } catch (e) {
       console.error("Failed to submit application:", e);
@@ -147,18 +156,27 @@ export default function ApplicationsPage() {
                   )}
 
                   {app.status === "approved" && (
-                    <button
-                      disabled={actioningId !== null}
-                      onClick={() => handleSubmit(app.id)}
-                      className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-                    >
-                      {actioningId === app.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                      Mark as Submitted
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="email"
+                        placeholder="Recruiter email (optional)"
+                        value={recipientEmails[app.id] || ""}
+                        onChange={(e) => setRecipientEmails({ ...recipientEmails, [app.id]: e.target.value })}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs focus:outline-none w-48"
+                      />
+                      <button
+                        disabled={actioningId !== null}
+                        onClick={() => handleSubmit(app.id, recipientEmails[app.id])}
+                        className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                      >
+                        {actioningId === app.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                        Submit Application
+                      </button>
+                    </div>
                   )}
 
                   {app.status === "submitted" && (

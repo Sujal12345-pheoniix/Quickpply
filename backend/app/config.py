@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     # Use Clerk by default if configured. Set to false to force local auth.
     USE_CLERK: bool = True
 
+    # SMTP Settings for Outreach & Job Applications
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
 

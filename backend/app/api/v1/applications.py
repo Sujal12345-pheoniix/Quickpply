@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from uuid import UUID
 import datetime
+from pydantic import BaseModel
 
 from app.dependencies import get_current_user, get_db
 from app.schemas import (
@@ -15,6 +16,9 @@ from app.schemas import (
 from app.models import Application, Job, ApplicationStatus, Profile, ProfileSkill
 
 router = APIRouter()
+
+class SubmitApplicationRequest(BaseModel):
+    recipient_email: str | None = None
 
 
 @router.get("")
@@ -178,6 +182,7 @@ async def approve_application(
 @router.post("/{application_id}/submit")
 async def submit_application(
     application_id: str,
+    body: SubmitApplicationRequest = None,
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user)
 ):
@@ -191,10 +196,53 @@ async def submit_application(
     app = res.scalars().first()
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
-        
+
+    recipient_email = body.recipient_email if body else None
+
+    # If recipient email is configured, send actual application email!
+    if recipient_email:
+        # Fetch target job details
+        job_stmt = select(Job).where(Job.id == app.job_id)
+        job_res = await db.execute(job_stmt)
+        job = job_res.scalars().first()
+        job_title = job.title if job else "Unknown Role"
+        company_name = job.company_name if job else "Unknown Company"
+
+        # Build email content
+        subject = f"Job Application: {user.full_name or 'Candidate'} - {job_title} at {company_name}"
+        email_body = f"Hello,\n\nPlease find attached my application for the {job_title} role at {company_name}.\n\n"
+        if app.cover_letter_text:
+            email_body += f"Cover Letter:\n----------------------------------------\n{app.cover_letter_text}\n----------------------------------------\n"
+        else:
+            email_body += "I have attached my resume below for your review.\n"
+
+        resume_bytes = None
+        resume_filename = "resume.txt"
+        if app.tailored_resume_text:
+            resume_bytes = app.tailored_resume_text.encode("utf-8")
+        else:
+            # Fallback to general profile resume if tailored is empty
+            profile_stmt = select(Profile).where(Profile.user_id == user.id)
+            p_res = await db.execute(profile_stmt)
+            profile = p_res.scalars().first()
+            if profile and profile.raw_resume_text:
+                resume_bytes = profile.raw_resume_text.encode("utf-8")
+
+        from app.utils.email_service import send_email
+        success = await send_email(
+            to_email=recipient_email,
+            subject=subject,
+            body=email_body,
+            attachment_bytes=resume_bytes,
+            attachment_filename=resume_filename
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to deliver application email. Check SMTP settings.")
+
     app.status = ApplicationStatus.submitted
     app.applied_at = datetime.datetime.utcnow()
     app.updated_at = datetime.datetime.utcnow()
     await db.commit()
     
-    return {"status": "submitted", "application_id": str(app.id)}
+    return {"status": "submitted", "application_id": str(app.id), "sent_email": recipient_email}

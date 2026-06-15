@@ -15,12 +15,15 @@ export default function OutreachPage() {
   const [selectedAppId, setSelectedAppId] = useState("");
   const [recipientName, setRecipientName] = useState("");
   const [recipientTitle, setRecipientTitle] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
   const [channel, setChannel] = useState("linkedin_dm");
   const [attachResume, setAttachResume] = useState(true);
   
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [sending, setSending] = useState(false);
   const [generatedMsg, setGeneratedMsg] = useState("");
+  const [messageId, setMessageId] = useState("");
   const [copied, setCopied] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/v1";
@@ -61,9 +64,14 @@ export default function OutreachPage() {
       alert("Please enter the recruiter's name.");
       return;
     }
+    if (channel === "email" && !recipientEmail) {
+      alert("Please enter the recruiter's email.");
+      return;
+    }
 
     setGenerating(true);
     setGeneratedMsg("");
+    setMessageId("");
     setCopied(false);
 
     try {
@@ -78,6 +86,7 @@ export default function OutreachPage() {
           application_id: selectedAppId,
           recipient_name: recipientName,
           recipient_title: recipientTitle,
+          recipient_email: channel === "email" ? recipientEmail : null,
           channel: channel,
         }),
       });
@@ -85,6 +94,7 @@ export default function OutreachPage() {
       if (res.ok) {
         const data = await res.json();
         setGeneratedMsg(data.message);
+        setMessageId(data.id);
       } else {
         const err = await res.json();
         alert(err.detail || "Failed to generate outreach message.");
@@ -94,6 +104,37 @@ export default function OutreachPage() {
       alert("An error occurred during generation.");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handleSendOutreach() {
+    if (!messageId) {
+      alert("Please generate a message first.");
+      return;
+    }
+
+    setSending(true);
+    try {
+      const token = await (window as any).Clerk?.session?.getToken();
+      const res = await fetch(`${API_URL}/outreach/${messageId}/send`, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(data.message);
+      } else {
+        const err = await res.json();
+        alert(err.detail || "Failed to send outreach.");
+      }
+    } catch (e) {
+      console.error("Send outreach error:", e);
+      alert("An error occurred during email delivery.");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -188,6 +229,20 @@ export default function OutreachPage() {
                 </select>
               </div>
 
+              {channel === "email" && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">Recruiter Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                    placeholder="e.g. sarah.j@company.com"
+                    className="mt-2 block w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm focus:border-slate-400 focus:outline-none"
+                  />
+                </div>
+              )}
+
               <div className="flex items-center gap-2 py-1">
                 <input
                   type="checkbox"
@@ -260,6 +315,24 @@ export default function OutreachPage() {
                     <span>Your active PDF resume is marked as attached to this outreach.</span>
                   </div>
                 )}
+
+                <button
+                  onClick={handleSendOutreach}
+                  disabled={sending}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50 shadow-md"
+                >
+                  {sending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Delivering Outreach...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      {channel === "email" ? "Send Cold Email Now" : "Mark as Sent & Log Activity"}
+                    </>
+                  )}
+                </button>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-center text-slate-400">
